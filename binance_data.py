@@ -1,12 +1,12 @@
-import os
 import io
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from enum import Enum
 from os.path import dirname, join
+from typing import Optional, Union
 from zipfile import ZipFile
-from typing import Union
-from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import requests
@@ -14,12 +14,20 @@ import requests
 DATA_DIR = join(dirname(dirname(__file__)), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+
+def create_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+
+logger = create_logger()
 
 
 class Kind(Enum):
@@ -41,14 +49,14 @@ class DataLoader:
         self.start = start
         self.end = end
 
-    def load_data(self):
+    def load_data(self) -> pd.DataFrame:
         with ThreadPoolExecutor(max_workers=20) as executor:
             dfs = list(
                 executor.map(self.load_daily_data, pd.date_range(self.start, self.end))
             )
         return pd.concat(dfs)
 
-    def load_daily_data(self, dt: date) -> pd.DataFrame:
+    def load_daily_data(self, dt: date) -> Optional[pd.DataFrame]:
         try:
             return self.load_local_daily_data(dt)
         except FileNotFoundError:
@@ -58,7 +66,7 @@ class DataLoader:
         pickle_path = self.get_daily_pickle_path(dt)
         return pd.read_pickle(pickle_path)
 
-    def download_daily_data(self, dt: date):
+    def download_daily_data(self, dt: date) -> Optional[pd.DataFrame]:
         logger.info(f'Downloading {self.symbol} {dt.strftime("%Y-%m-%d")}')
         url = f'https://data.binance.vision/data/{self.kind.value}/daily/aggTrades/{self.symbol}/{self.symbol}-aggTrades-{dt.strftime("%Y-%m-%d")}.zip'
         resp = requests.get(url)
@@ -78,9 +86,6 @@ class DataLoader:
         os.makedirs(dirname(pkl_path), exist_ok=True)
         df.to_pickle(pkl_path)
         return df
-
-    def csv_to_pickle(self, csv_path, pkl_path) -> None:
-        df = pd.read_csv(csv_path, usecols=[1, 5], names=["price", "datetime"])
 
     def get_daily_pickle_path(self, dt: date) -> str:
         return join(
