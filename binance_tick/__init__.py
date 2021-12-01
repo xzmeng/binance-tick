@@ -43,18 +43,23 @@ class DataLoader:
         symbol: str,
         start: Union[date, str],
         end: Union[date, str],
+        tz: str = None,
     ) -> None:
         self.kind = kind
         self.symbol = symbol
         self.start = start
         self.end = end
+        self.tz = tz
 
     def load_data(self) -> pd.DataFrame:
         with ThreadPoolExecutor(max_workers=20) as executor:
             dfs = list(
                 executor.map(self.load_daily_data, pd.date_range(self.start, self.end))
             )
-        return pd.concat(dfs)
+        df = pd.concat(dfs)
+        if self.tz:
+            df.index = df.index.tz_localize("utc").tz_convert(self.tz)
+        return df
 
     def load_daily_data(self, dt: date) -> Optional[pd.DataFrame]:
         try:
@@ -102,9 +107,12 @@ def load_data(
     symbol: str = "ETHUSDT",
     start: Union[date, str] = date(2021, 2, 28),
     end: Union[date, str] = date.today(),
-    kind: Kind = Kind.SPOT,
+    kind: Union[Kind, str] = Kind.SPOT,
+    tz: str = "Asia/Shanghai",
 ) -> None:
-    return DataLoader(kind, symbol, start, end).load_data()
+    if isinstance(kind, str):
+        kind = {"spot": Kind.SPOT, "cm": Kind.FUTURES_CM, "um": Kind.FUTURES_UM}[kind]
+    return DataLoader(kind, symbol, start, end, tz).load_data()
 
 
 if __name__ == "__main__":

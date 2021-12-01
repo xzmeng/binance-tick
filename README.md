@@ -3,7 +3,7 @@
 
 ## Usage
 
-    from binance_data import load_data, Kind
+    from binance_tick import load_data, Kind
     df = load_data(kind=Kind.SPOT, symbol='ETHUSDT', start='2021-6-1', end='2021-9-1')
 
 or
